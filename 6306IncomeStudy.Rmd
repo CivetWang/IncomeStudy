@@ -1,0 +1,87 @@
+---
+title: "IncomeStudy"
+author: "CivetW"
+date: "2021/11/25"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+#load libraries
+```{r}
+library(ggplot2)
+library(ggthemes)
+library(plotly)
+library(stringr)
+library(maps)
+library(tidyverse)
+library(tidyr)
+library(dplyr)
+library(pastecs)
+library(e1071)
+library(caret)
+library(randomForest)
+library(class)
+library(caTools)
+library(plotly)
+library(naniar)
+library(GGally)
+library(naivebayes)
+library(psych)
+library(Hmisc)
+library(ggcorrplot)
+library(corrplot)
+library(readr)
+library(Metrics)
+library(MASS)
+```
+
+Load in the raw data and provide a summary to visualize
+
+```{r}
+Income_data <- read_csv("CaseStudy2-data.csv")
+Income.data=as.data.frame(unclass(Income_data),stringsAsFactors = TRUE)
+summary(Income.data)
+```
+Find out the target factors 
+```{r}
+
+Income.data.num=select_if(Income.data,is.numeric)
+Income.data.num=cbind(Income.data.num,Attrition=as.numeric(Income.data$Attrition))
+Income.data.fac=select_if(Income.data,is.factor)
+correlation.list=cor(Income.data.num,Income.data.num$Attrition)
+Income.data.fac[] <- as.integer(unlist(Income.data.fac, use.names = FALSE))
+correlation.list=rbind(correlation.list, cor(Income.data.fac[-1],Income.data.fac$Attrition))
+correlation=data.frame(Factors=row.names(correlation.list),Cor=correlation.list[,1])
+correlation[order(abs(correlation[,2]),decreasing = TRUE),]
+```
+I found the Correlation table indicates several indicators that may possible have influence.
+```{r}
+#split cross validation groups/dataframes
+set.seed(1000)
+smp_size.Income=floor(0.7 * nrow(Income.data))
+train.ind=sample(seq_len(nrow(Income.data)), size = smp_size.Income)
+Income.train=Income.data[train.ind,]
+Income.test=Income.data[-train.ind,]
+for (i in 1:6) {
+Income.train=Income.train[!Income.train$MonthlyIncome %in% boxplot.stats(Income.train$MonthlyIncome)$out,]
+Income.test=Income.test[!Income.test$MonthlyIncome %in% boxplot.stats(Income.test$MonthlyIncome)$out,]
+}
+Income.nb=naive_bayes(Attrition~OverTime+MaritalStatus+JobInvolvement+TotalWorkingYears+JobLevel+
+                        YearsInCurrentRole+MonthlyIncome+Age+StockOptionLevel+
+                        YearsAtCompany ,data = Income.train,usekernel = T)
+Income.nb.pred=predict(Income.nb,newdata=Income.test)
+confusionMatrix(Income.nb.pred,Income.test$Attrition)
+rmse(Income.train$MonthlyIncome,Income.test$MonthlyIncome)
+#Plot Variable performance
+plot(Income.nb)
+```
+Extra findings to the dataset to share in commerce perspective(visualizations)
+```{r}
+ggplot(data=Income.data,aes(x=EducationField,y=MonthlyIncome))+geom_boxplot()+coord_flip()
+ggplot(data=Income.data,aes(x=JobRole,y=MonthlyIncome))+geom_boxplot()+coord_flip()
+ggplot(data=Income.data,aes(x=Department,y=MonthlyIncome))+geom_boxplot()+coord_flip()
+ggplot(data=Income.data,aes(x=MonthlyIncome,y=MaritalStatus))+geom_boxplot()
+ggplot(data=Income.data,aes(x=JobSatisfaction,y=MonthlyIncome))+geom_density_2d_filled()
+```
